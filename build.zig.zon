@@ -1,0 +1,11 @@
+.{
+    .name = "libgmg",
+    .version = "0.420.69",
+    .dependencies = .{},
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
