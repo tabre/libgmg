@@ -23,4 +23,10 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
+
+    _ = b.addModule("gmg", .{
+        .root_source_file = b.path("src/GMG.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 }
