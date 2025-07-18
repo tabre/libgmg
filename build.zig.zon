@@ -1,5 +1,5 @@
 .{
-    .name = "libgmg",
+    .name = .libgmg,
     .version = "0.420.69",
     .dependencies = .{},
 
@@ -8,4 +8,5 @@
         "build.zig.zon",
         "src",
     },
+    .fingerprint = 0x85e47882e7473068
 }
