@@ -45,15 +45,15 @@ pub fn init(io: Io, address: []const u8, prt: u16, poll_dly: u8, auto: bool) !Se
 
 pub fn init_comm(self: *Self) void {
     self.sock_init() catch {
-        std.debug.print("Error initializing socket", .{});
+        std.log.defaultLog(.err, .GMG, "Error initializing socket", .{});
     };
 
     self.grill_init() catch |err| {
-        std.debug.print("{}", .{err});
+        std.log.defaultLog(.err, .GMG, "{}", .{err});
     };
 
     self.start_polling() catch |err| {
-        std.debug.print("{}", .{err});
+        std.log.defaultLog(.err, .GMG, "{}", .{err});
     };
 }
 
@@ -132,17 +132,17 @@ pub fn set_probe_temp(self: *Self, tmp: u16) !void {
     parse_poll_data(&data);
 }
 
-pub fn show(self: Self, show_raw: bool) void {
-    std.debug.print("GMG - {s} @ {any}\n", .{name, self.addr});
-    std.debug.print("State     : {s}\n", .{@tagName(state)});
-    std.debug.print("Temp      : {}\n", .{temp});
-    std.debug.print("Set       : {}\n", .{setpoint});
-    std.debug.print("Probe Set : {}\n", .{probe_setpoint});
-    if (show_raw) {
-        std.debug.print("Raw       : {any}\n", .{raw});
-    }
-    std.debug.print("\n", .{});
-}
+// pub fn show(self: Self, show_raw: bool) void {
+//     std.debug.print("GMG - {s} @ {any}\n", .{name, self.addr});
+//     std.debug.print("State     : {s}\n", .{@tagName(state)});
+//     std.debug.print("Temp      : {}\n", .{temp});
+//     std.debug.print("Set       : {}\n", .{setpoint});
+//     std.debug.print("Probe Set : {}\n", .{probe_setpoint});
+//     if (show_raw) {
+//         std.debug.print("Raw       : {any}\n", .{raw});
+//     }
+//     std.debug.print("\n", .{});
+// }
 
 // Getters
 pub fn get_name(self: Self) []u8 {

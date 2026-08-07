@@ -36,11 +36,11 @@ pub fn init(io: Io, address: []const u8, prt: u16, listen_dly: u8, auto: bool, d
 
 pub fn init_comm(self: *Self) void {
     self.sock_init() catch {
-        std.debug.print("Error initializing socket\n", .{});
+        std.log.defaultLog(.err, .Testing, "Error initializing socket\n", .{});
     };
     
     self.start_listen() catch |err| {
-        std.debug.print("{}", .{err});
+        std.log.defaultLog(.err, .Testing, "{}", .{err});
     };
 }
 
@@ -49,21 +49,22 @@ fn sock_init(self: *Self) !void {
     errdefer self.sock.close(self.io);
 
     if (self.debug) {
-        std.debug.print("TEST_SERVER: Socket connected.\n", .{});
+        std.log.defaultLog(.debug, .Testing, "TEST_SERVER: Socket connected.\n", .{});
     }
 }
 
 fn listen(self: Self) !void {
-    var resp: [36]u8 = undefined;
+    var resp: [36]u8 = [_]u8{0} ** 36;
     @memcpy(&resp, &default);
 
-    var buf: [6]u8 = undefined;
+    var buf: [6]u8 = [_]u8{0} ** 6;
+    // SAFETY: inc_msg will be set before use
     var inc_msg: IncomingMessage = undefined;
 
     while(go.load(.acquire)) {
         inc_msg = self.sock.receive(self.io, &buf) catch break;
         if (self.debug) {
-            std.debug.print(
+            std.log.defaultLog(.debug, .Testing, 
                 "TEST_SERVER: {} bytes received: {s}\n", 
                 .{inc_msg.data.len, buf}
             );
@@ -75,7 +76,7 @@ fn listen(self: Self) !void {
             },
             1 => {
                 if (self.debug) {
-                    std.debug.print("TEST_SERVER: Received EOT signal.\n", .{});
+                    std.log.defaultLog(.debug, .Testing, "TEST_SERVER: Received EOT signal.\n", .{});
                     self.sock.send(self.io, &inc_msg.from, "!") catch break;
                     break;
                 }
@@ -114,7 +115,7 @@ fn listen(self: Self) !void {
         try self.io.sleep(Io.Duration{ .nanoseconds = self.listen_delay }, .awake);
     } 
     if (self.debug) {
-        std.debug.print("TEST_SERVER: Shutting down.\n", .{});
+        std.log.defaultLog(.debug, .Testing, "TEST_SERVER: Shutting down.\n", .{});
     }
 }
 
