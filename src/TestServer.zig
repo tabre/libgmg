@@ -10,10 +10,10 @@ addr: IpAddress,
 port: u16,
 listen_delay: u64,
 debug: bool,
-sock: Socket = undefined,
+sock: Socket,
 
 var go: std.atomic.Value(bool) = std.atomic.Value(bool).init(true);
-var listen_thread: std.Thread = undefined;
+var listen_thread: ?std.Thread = null;
 const default = [_]u8{ 85, 82, 78, 0, 81, 0, 150, 0, 1, 11, 20, 50, 25, 25, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1 };
 
 const Self = @This();
@@ -24,7 +24,9 @@ pub fn init(io: Io, address: []const u8, prt: u16, listen_dly: u8, auto: bool, d
         .addr = try IpAddress.parseIp4(address, prt),
         .port = prt,
         .listen_delay = std.time.ns_per_s * @as(u64, listen_dly),
-        .debug=dbg
+        .debug=dbg,
+        // SAFETY: sock will be set before use
+        .sock = undefined
     };
 
     if (auto) {
@@ -126,6 +128,6 @@ fn start_listen(self: Self) !void {
 
 pub fn stop_listen(self: Self) void {
     go.store(false, .release);
-    listen_thread.join();
+    if (listen_thread) |t| t.join();
     self.sock.close(self.io);
 }

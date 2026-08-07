@@ -13,18 +13,18 @@ io: Io,
 addr: IpAddress,
 port: u16,
 poll_delay: u64,
-sock: Socket = undefined,
+sock: Socket,
 
 var go: std.atomic.Value(bool) = std.atomic.Value(bool).init(true);
-var polling_thread: std.Thread = undefined;
+var polling_thread: ?std.Thread = null;
 
-var name: [12]u8 = undefined;
+var name: [12]u8 = [_]u8{0} ** 12;
 var state: enums.GrillState = enums.GrillState.from_int(0);
 var temp: u16 = 0;
 var setpoint: u16 = 0;
 var probe_temp: u16 = 0;
 var probe_setpoint: u16 = 0;
-var raw: [36]u8 = undefined;
+var raw: [36]u8 = [_]u8{0} ** 36;
 
 const Self = @This();
 
@@ -33,7 +33,9 @@ pub fn init(io: Io, address: []const u8, prt: u16, poll_dly: u8, auto: bool) !Se
         .io = io,
         .addr = try IpAddress.parseIp4(address, prt),
         .port = prt,
-        .poll_delay = std.time.ns_per_s * @as(u64, poll_dly)
+        .poll_delay = std.time.ns_per_s * @as(u64, poll_dly),
+        // SAFETY: sock will be set before use
+        .sock = undefined
     };
     
     if (auto) {
@@ -66,10 +68,10 @@ fn sock_init(self: *Self) !void {
 fn send_msg(self: *Self, msg: messages.GrillMessage) ![36]u8 {
     try self.sock.send(self.io, &self.addr, msg.msg);
 
-    var buf: [36]u8 = undefined;
+    var buf: [36]u8 = [_]u8{0} ** 36;
     const inc_msg: IncomingMessage = try self.sock.receive(self.io, &buf);
     
-    var result: [36]u8 = undefined;
+    var result: [36]u8 = [_]u8{0} ** 36;
     @memcpy(result[0..inc_msg.data.len], inc_msg.data);
 
     return result;
@@ -95,7 +97,7 @@ pub fn start_polling(self: *Self) !void {
 
 pub fn stop_polling(self: Self) void {
     go.store(false, .release);
-    polling_thread.join();
+    if (polling_thread) |t| t.join();
     self.sock.close(self.io);
 }
 

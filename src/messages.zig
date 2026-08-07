@@ -9,7 +9,7 @@ pub const GrillMessage = struct {
     
     pub inline fn set_temp(set: u16, register: enums.GrillSPRegister) Self { 
         var msg = [6]u8{ 85, 84, 48, 48, 48, 33 };
-        var sp:u16 = undefined;
+        var sp:u16 = 0;
        
         switch (register) {
             enums.GrillSPRegister.MAIN => {
