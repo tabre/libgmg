@@ -1,4 +1,3 @@
-const std = @import("std"); 
 const enums = @import("enums.zig");
 
 pub const GrillMessage = struct {

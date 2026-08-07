@@ -1,5 +1,4 @@
 const std = @import("std");
-const posix = std.posix;
 const testing = std.testing;
 
 const Io= std.Io;

@@ -1,5 +1,3 @@
-const std = @import("std");
-
 pub const GrillState = enum {
     OFF,
     WARMUP,
