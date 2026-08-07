@@ -1,16 +1,22 @@
 const std = @import("std");
-const posix = std.posix;
+
+const Io = std.Io;
+const Duration = Io.Duration;
+const Socket = Io.net.Socket;
+const IpAddress = Io.net.IpAddress;
+const IncomingMessage = Io.net.IncomingMessage;
 
 const enums = @import("enums.zig");
 const messages = @import("messages.zig");
 
-addr: std.net.Address,
+io: Io,
+addr: IpAddress,
 port: u16,
 poll_delay: u64,
+sock: Socket = undefined,
 
-var go: bool = true;
+var go: std.atomic.Value(bool) = std.atomic.Value(bool).init(true);
 var polling_thread: std.Thread = undefined;
-var sock: posix.socket_t = undefined;
 
 var name: [12]u8 = undefined;
 var state: enums.GrillState = enums.GrillState.from_int(0);
@@ -22,9 +28,10 @@ var raw: [36]u8 = undefined;
 
 const Self = @This();
 
-pub fn init(address: []const u8, prt: u16, poll_dly: u8, auto: bool) !Self {
+pub fn init(io: Io, address: []const u8, prt: u16, poll_dly: u8, auto: bool) !Self {
     var new = Self {
-        .addr = try std.net.Address.parseIp4(address, prt),
+        .io = io,
+        .addr = try IpAddress.parseIp4(address, prt),
         .port = prt,
         .poll_delay = std.time.ns_per_s * @as(u64, poll_dly)
     };
@@ -36,7 +43,7 @@ pub fn init(address: []const u8, prt: u16, poll_dly: u8, auto: bool) !Self {
     return new;
 }
 
-pub fn init_comm(self: Self) void {
+pub fn init_comm(self: *Self) void {
     self.sock_init() catch {
         std.debug.print("Error initializing socket", .{});
     };
@@ -50,59 +57,49 @@ pub fn init_comm(self: Self) void {
     };
 }
 
-fn sock_init(self: Self) !void {
-    sock = try posix.socket(posix.AF.INET, posix.SOCK.DGRAM, posix.IPPROTO.UDP);
-    errdefer posix.shutdown(sock, std.posix.ShutdownHow.both) catch |err| {
-        std.debug.print("{!}\n", .{err});
-    };
-    
-    try posix.connect(sock, &self.addr.any, self.addr.getOsSockLen());
+fn sock_init(self: *Self) !void {
+    const src: IpAddress = .{ .ip4 = .unspecified(0) };
+    self.sock = try src.bind(self.io, .{ .mode = .dgram });
+    errdefer self.sock.close(self.io);
 }
 
-fn send_msg(self: Self, msg: messages.GrillMessage) ![]u8 {
-    _ = try posix.sendto(
-        sock, msg.msg, 0, &self.addr.any, self.addr.getOsSockLen()
-    );
+fn send_msg(self: *Self, msg: messages.GrillMessage) ![36]u8 {
+    try self.sock.send(self.io, &self.addr, msg.msg);
 
     var buf: [36]u8 = undefined;
-    var n_recvd: usize = 0;
-    var n_bytes: u64 = 0;
+    const inc_msg: IncomingMessage = try self.sock.receive(self.io, &buf);
+    
+    var result: [36]u8 = undefined;
+    @memcpy(result[0..inc_msg.data.len], inc_msg.data);
 
-    while (n_bytes < msg.response_size) {
-        n_recvd = try posix.recvfrom(sock,  buf[n_bytes..], 0, null, null);
-        if ((n_recvd == 1) and (buf[n_bytes] == 21)) break;
-        n_bytes += n_recvd;
-    }
-
-    return &buf;
+    return result;
 }
 
-fn grill_init(self: Self) !void {
+fn grill_init(self: *Self) !void {
     const response = try self.send_msg(messages.MSG_INIT);
     @memcpy(name[0..12], response[2..14]);
 }
 
-fn poll(self: Self) !void {
-    while (go) {
-        parse_poll_data(try self.send_msg(messages.MSG_POLL));
-        std.time.sleep(self.poll_delay);
+fn poll(self: *Self) !void {
+    while (go.load(.acquire)) {
+        const data = self.send_msg(messages.MSG_POLL) catch break;
+        parse_poll_data(&data);
+        self.io.sleep(Duration{ .nanoseconds = self.poll_delay}, .awake) catch break;
     }
 }
 
-pub fn start_polling(self: Self) !void {
-    go = true;
+pub fn start_polling(self: *Self) !void {
+    go.store(true, .release);
     polling_thread = try std.Thread.spawn(.{}, poll, .{self}); 
 }
 
 pub fn stop_polling(self: Self) void {
-    go = false;
-    _ = self.send_msg(messages.MSG_EOT) catch |err| {
-        std.debug.print("Error sending EOT message: {!}", .{err});
-    };
+    go.store(false, .release);
     polling_thread.join();
+    self.sock.close(self.io);
 }
 
-fn parse_poll_data(buf: []u8) void {
+fn parse_poll_data(buf: *const [36]u8) void {
     @memcpy(raw[0..36], buf);
     temp = @bitCast(raw[2..4].*);
     setpoint = @bitCast(raw[6..8].*);
@@ -119,18 +116,20 @@ pub fn stop(self: Self) void {
     self.send_msg(messages.MSG_STOP);
 }
 
-pub fn set_temp(self: Self, tmp: u16) !void {
-    parse_poll_data(try self.send_msg(messages.GrillMessage.set_temp(
+pub fn set_temp(self: *Self, tmp: u16) !void {
+    var data = try self.send_msg(messages.GrillMessage.set_temp(
         tmp,
         enums.GrillSPRegister.MAIN
-    )));
+    ));
+    parse_poll_data(&data);
 }
 
-pub fn set_probe_temp(self: Self, tmp: u16) !void {
-    parse_poll_data(try self.send_msg(messages.GrillMessage.set_temp(
+pub fn set_probe_temp(self: *Self, tmp: u16) !void {
+    var data = try self.send_msg(messages.GrillMessage.set_temp(
         tmp,
         enums.GrillSPRegister.PROBE1
-    )));
+    ));
+    parse_poll_data(&data);
 }
 
 pub fn show(self: Self, show_raw: bool) void {

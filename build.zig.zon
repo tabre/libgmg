@@ -2,7 +2,7 @@
     .name = .libgmg,
     .version = "0.420.69",
     .dependencies = .{},
-
+    .minimum_zig_version = "0.16.0",
     .paths = .{
         "build.zig",
         "build.zig.zon",

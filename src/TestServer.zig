@@ -1,21 +1,27 @@
 const std = @import("std");
-const posix = std.posix;
 
-addr: std.net.Address,
+const Io = std.Io;
+const Socket = Io.net.Socket;
+const IpAddress = Io.net.IpAddress;
+const IncomingMessage = Io.net.IncomingMessage;
+
+io: Io,
+addr: IpAddress,
 port: u16,
 listen_delay: u64,
 debug: bool,
+sock: Socket = undefined,
 
-var go: bool = true;
+var go: std.atomic.Value(bool) = std.atomic.Value(bool).init(true);
 var listen_thread: std.Thread = undefined;
-var sock: posix.socket_t = undefined;
 const default = [_]u8{ 85, 82, 78, 0, 81, 0, 150, 0, 1, 11, 20, 50, 25, 25, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1 };
 
 const Self = @This();
 
-pub fn init(address: []const u8, prt: u16, listen_dly: u8, auto: bool, dbg: bool) !Self {
+pub fn init(io: Io, address: []const u8, prt: u16, listen_dly: u8, auto: bool, dbg: bool) !Self {
     var new = Self {
-        .addr = try std.net.Address.parseIp4(address, prt),
+        .io = io,
+        .addr = try IpAddress.parseIp4(address, prt),
         .port = prt,
         .listen_delay = std.time.ns_per_s * @as(u64, listen_dly),
         .debug=dbg
@@ -28,9 +34,9 @@ pub fn init(address: []const u8, prt: u16, listen_dly: u8, auto: bool, dbg: bool
     return new;
 }
 
-pub fn init_comm(self: Self) void {
+pub fn init_comm(self: *Self) void {
     self.sock_init() catch {
-        std.debug.print("Error initializing socket", .{});
+        std.debug.print("Error initializing socket\n", .{});
     };
     
     self.start_listen() catch |err| {
@@ -38,13 +44,10 @@ pub fn init_comm(self: Self) void {
     };
 }
 
-fn sock_init(self: Self) !void {
-    sock = try posix.socket(posix.AF.INET, posix.SOCK.DGRAM, posix.IPPROTO.UDP);
-    errdefer posix.shutdown(sock, std.posix.ShutdownHow.both) catch |err| {
-        std.debug.print("{!}\n", .{err});
-    };
+fn sock_init(self: *Self) !void {
+    self.sock = try self.addr.bind(self.io, .{ .mode = .dgram });
+    errdefer self.sock.close(self.io);
 
-    try posix.bind(sock, &self.addr.any, self.addr.getOsSockLen());
     if (self.debug) {
         std.debug.print("TEST_SERVER: Socket connected.\n", .{});
     }
@@ -53,33 +56,27 @@ fn sock_init(self: Self) !void {
 fn listen(self: Self) !void {
     var resp: [36]u8 = undefined;
     @memcpy(&resp, &default);
-    
-    var client_addr: posix.sockaddr = undefined;
-    var addr_len: posix.socklen_t = @sizeOf(std.posix.sockaddr);
 
     var buf: [6]u8 = undefined;
-    var n_bytes: u64 = 0;
+    var inc_msg: IncomingMessage = undefined;
 
-    while(go) {
-        n_bytes = try posix.recvfrom(
-            sock, buf[0..], 0, &client_addr, &addr_len
-        );
-        
+    while(go.load(.acquire)) {
+        inc_msg = self.sock.receive(self.io, &buf) catch break;
         if (self.debug) {
             std.debug.print(
                 "TEST_SERVER: {} bytes received: {s}\n", 
-                .{n_bytes, buf[0..n_bytes]}
+                .{inc_msg.data.len, buf}
             );
         }
 
-        switch (n_bytes) {
+        switch (inc_msg.data.len) {
             3 => {
-                _ = try posix.sendto(sock, "UNDB02SUF0_1.1", 0, &client_addr, addr_len);
+                self.sock.send(self.io, &inc_msg.from, "UNDB02SUF0_1.1") catch break;
             },
             1 => {
                 if (self.debug) {
                     std.debug.print("TEST_SERVER: Received EOT signal.\n", .{});
-                    _ = try posix.sendto(sock, "!", 0, &client_addr, addr_len);
+                    self.sock.send(self.io, &inc_msg.from, "!") catch break;
                     break;
                 }
             },
@@ -87,34 +84,34 @@ fn listen(self: Self) !void {
                 75 => switch (buf[4]) {
                     49 => {
                         resp[30] = 1;
-                        _ = try posix.sendto(sock, "OK", 0, &client_addr, addr_len);
+                        self.sock.send(self.io, &inc_msg.from, "OK") catch break;
                     },
                     52 => {
                         resp[30] = 0;
-                        _ = try posix.sendto(sock, "OK", 0, &client_addr, addr_len);
+                        self.sock.send(self.io, &inc_msg.from, "OK") catch break;
                     },
                     else => {}
                 },
                 82 => {
-                    _ = try posix.sendto(sock, &resp, 0, &client_addr, addr_len); 
+                    self.sock.send(self.io, &inc_msg.from, &resp) catch break;
                 },
                 84 => { 
                     const i: u16 = try std.fmt.parseInt(u16, buf[2..5], 10);
                     const split: [2]u8 = @bitCast(i);
                     @memcpy(resp[6..8], &split); 
-                    _ = try posix.sendto(sock, &resp, 0, &client_addr, addr_len);
+                    self.sock.send(self.io, &inc_msg.from, &resp) catch break;
 
                 },
                 70 => { 
                     const i: u16 = try std.fmt.parseInt(u16, buf[2..5], 10);
                     const split: [2]u8 = @bitCast(i);
                     @memcpy(resp[28..30], &split);
-                    _ = try posix.sendto(sock, &resp, 0, &client_addr, addr_len);
+                    self.sock.send(self.io, &inc_msg.from, &resp) catch break;
                 },
                 else => {}
             }
         }
-        std.time.sleep(self.listen_delay);
+        try self.io.sleep(Io.Duration{ .nanoseconds = self.listen_delay }, .awake);
     } 
     if (self.debug) {
         std.debug.print("TEST_SERVER: Shutting down.\n", .{});
@@ -122,12 +119,12 @@ fn listen(self: Self) !void {
 }
 
 fn start_listen(self: Self) !void {
-    go = true;
+    go.store(true, .release);
     listen_thread = try std.Thread.spawn(.{}, listen, .{self});
 }
 
 pub fn stop_listen(self: Self) void {
-    _ = self;
-    go = false;
+    go.store(false, .release);
     listen_thread.join();
+    self.sock.close(self.io);
 }
