@@ -8,6 +8,7 @@ const IncomingMessage = Io.net.IncomingMessage;
 
 const enums = @import("enums.zig");
 const messages = @import("messages.zig");
+const DiscoveredGrill = @import("discover.zig").DiscoveredGrill;
 
 io: Io,
 addr: IpAddress,
@@ -43,6 +44,10 @@ pub fn init(io: Io, address: []const u8, prt: u16, poll_dly: u8, auto: bool) !Se
     }
 
     return new;
+}
+
+pub fn from_discovered(io: Io, dg: DiscoveredGrill, poll_dly: u8, auto: bool) !Self {
+    return init(io, dg.addr, dg.port, poll_dly, auto);
 }
 
 pub fn init_comm(self: *Self) void {
