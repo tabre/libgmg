@@ -12,7 +12,6 @@ const DiscoveredGrill = @import("discover.zig").DiscoveredGrill;
 
 io: Io,
 addr: IpAddress,
-port: u16,
 poll_delay: u64,
 sock: Socket,
 
@@ -29,16 +28,15 @@ var raw: [36]u8 = [_]u8{0} ** 36;
 
 const Self = @This();
 
-pub fn init(io: Io, address: []const u8, prt: u16, poll_dly: u8, auto: bool) !Self {
-    var new = Self {
+pub fn init(io: Io, addr: []const u8, prt: u16, poll_dly: u8, auto: bool) !Self {
+    var new = Self{
         .io = io,
-        .addr = try IpAddress.parseIp4(address, prt),
-        .port = prt,
+        .addr = try IpAddress.parseIp4(addr, prt),
         .poll_delay = std.time.ns_per_s * @as(u64, poll_dly),
         // SAFETY: sock will be set before use
-        .sock = undefined
+        .sock = undefined,
     };
-    
+
     if (auto) {
         new.init_comm();
     }
@@ -47,7 +45,12 @@ pub fn init(io: Io, address: []const u8, prt: u16, poll_dly: u8, auto: bool) !Se
 }
 
 pub fn from_discovered(io: Io, dg: DiscoveredGrill, poll_dly: u8, auto: bool) !Self {
-    return init(io, dg.addr, dg.port, poll_dly, auto);
+    var addr_buf: [15]u8 = undefined;
+    const ip4 = dg.addr.ip4;
+    const addr_str = try std.fmt.bufPrint(&addr_buf, "{d}.{d}.{d}.{d}", .{
+        ip4.bytes[0], ip4.bytes[1], ip4.bytes[2], ip4.bytes[3],
+    });
+    return init(io, addr_str, ip4.port, poll_dly, auto);
 }
 
 pub fn init_comm(self: *Self) void {
@@ -75,7 +78,7 @@ fn send_msg(self: *Self, msg: messages.GrillMessage) ![36]u8 {
 
     var buf: [36]u8 = [_]u8{0} ** 36;
     const inc_msg: IncomingMessage = try self.sock.receive(self.io, &buf);
-    
+
     var result: [36]u8 = [_]u8{0} ** 36;
     @memcpy(result[0..inc_msg.data.len], inc_msg.data);
 
@@ -91,13 +94,13 @@ fn poll(self: *Self) !void {
     while (go.load(.acquire)) {
         const data = self.send_msg(messages.MSG_POLL) catch break;
         parse_poll_data(&data);
-        self.io.sleep(Duration{ .nanoseconds = self.poll_delay}, .awake) catch break;
+        self.io.sleep(Duration{ .nanoseconds = self.poll_delay }, .awake) catch break;
     }
 }
 
 pub fn start_polling(self: *Self) !void {
     go.store(true, .release);
-    polling_thread = try std.Thread.spawn(.{}, poll, .{self}); 
+    polling_thread = try std.Thread.spawn(.{}, poll, .{self});
 }
 
 pub fn stop_polling(self: Self) void {
@@ -124,18 +127,12 @@ pub fn stop(self: Self) void {
 }
 
 pub fn set_temp(self: *Self, tmp: u16) !void {
-    var data = try self.send_msg(messages.GrillMessage.set_temp(
-        tmp,
-        .Main
-    ));
+    var data = try self.send_msg(messages.GrillMessage.set_temp(tmp, .Main));
     parse_poll_data(&data);
 }
 
 pub fn set_probe_temp(self: *Self, tmp: u16) !void {
-    var data = try self.send_msg(messages.GrillMessage.set_temp(
-        tmp,
-        .Probe1
-    ));
+    var data = try self.send_msg(messages.GrillMessage.set_temp(tmp, .Probe1));
     parse_poll_data(&data);
 }
 
