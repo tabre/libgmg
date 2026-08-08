@@ -23,7 +23,11 @@ const TestEnv = struct {
     const Self = @This();
 
     fn init(io: std.Io) !Self {
-        const new = Self{ .io = io, .serv = try TestServer.init(io, LOCAL, PORT, DELAY / std.time.ns_per_s / 20, false, DEBUG), .gmg = try GMG.init(io, LOCAL, PORT, DELAY / std.time.ns_per_s, false) };
+        const new = Self{
+            .io = io,
+            .serv = try TestServer.init(io, LOCAL, PORT, DELAY / std.time.ns_per_s / 20, false, DEBUG),
+            .gmg = try GMG.init(io, LOCAL, PORT, DELAY / std.time.ns_per_s, false)
+        };
 
         return new;
     }
