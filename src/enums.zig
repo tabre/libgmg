@@ -1,8 +1,8 @@
 pub const GrillState = enum {
-    OFF,
-    WARMUP,
-    ON,
-    COOL,
+    Off,
+    Warmup,
+    On,
+    Cool,
     
     const Self = @This();
 
@@ -12,15 +12,15 @@ pub const GrillState = enum {
 };
 
 pub const GrillSPRegister = enum {
-    MAIN,
-    PROBE1,
+    Main,
+    Probe1,
 
     const Self = @This();
 
     pub fn to_u8(self: Self) u8 {
         switch (self) {
-            Self.MAIN => return 84,
-            Self.PROBE1 => return 70,
+            Self.Main => return 84,
+            Self.Probe1 => return 70,
         }
     }
 };

@@ -11,10 +11,10 @@ pub const GrillMessage = struct {
         var sp:u16 = 0;
        
         switch (register) {
-            enums.GrillSPRegister.MAIN => {
+            .Main => {
                 sp = if (set < 150) 150 else if (set > 550) 550 else set;
             },
-            enums.GrillSPRegister.PROBE1 => {
+            .Probe1 => {
                 sp = if (set < 150) 150 else if (set > 255) 255 else set; 
             }
         }

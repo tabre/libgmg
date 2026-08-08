@@ -121,7 +121,7 @@ pub fn stop(self: Self) void {
 pub fn set_temp(self: *Self, tmp: u16) !void {
     var data = try self.send_msg(messages.GrillMessage.set_temp(
         tmp,
-        enums.GrillSPRegister.MAIN
+        .Main
     ));
     parse_poll_data(&data);
 }
@@ -129,7 +129,7 @@ pub fn set_temp(self: *Self, tmp: u16) !void {
 pub fn set_probe_temp(self: *Self, tmp: u16) !void {
     var data = try self.send_msg(messages.GrillMessage.set_temp(
         tmp,
-        enums.GrillSPRegister.PROBE1
+        .Probe1
     ));
     parse_poll_data(&data);
 }
