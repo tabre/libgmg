@@ -7,8 +7,7 @@ const IncomingMessage = Io.net.IncomingMessage;
 
 io: Io,
 addr: IpAddress,
-port: u16,
-listen_delay: u64,
+listen_freq: u64,
 debug: bool,
 sock: Socket,
 
@@ -18,12 +17,11 @@ const default = [_]u8{ 85, 82, 78, 0, 81, 0, 150, 0, 1, 11, 20, 50, 25, 25, 0, 0
 
 const Self = @This();
 
-pub fn init(io: Io, address: []const u8, prt: u16, listen_dly: u8, auto: bool, dbg: bool) !Self {
+pub fn init(io: Io, addr: IpAddress, listen_freq: u8, auto: bool, dbg: bool) !Self {
     var new = Self {
         .io = io,
-        .addr = try IpAddress.parseIp4(address, prt),
-        .port = prt,
-        .listen_delay = std.time.ns_per_s * @as(u64, listen_dly),
+        .addr = addr,
+        .listen_freq = std.time.ns_per_s * @as(u64, listen_freq),
         .debug=dbg,
         // SAFETY: sock will be set before use
         .sock = undefined
@@ -75,7 +73,7 @@ fn listen(self: Self) !void {
         switch (inc_msg.data.len) {
             3 => switch (buf[1]) {
                 76 => {
-                    self.sock.send(self.io, &inc_msg.from, "GMG00000000") catch break;
+                    self.sock.send(self.io, &inc_msg.from, "GMG69000420") catch break;
                 },
                 78 => {
                     self.sock.send(self.io, &inc_msg.from, "UNDB02SUF0_1.1") catch break;
@@ -120,7 +118,7 @@ fn listen(self: Self) !void {
                 else => {}
             }
         }
-        try self.io.sleep(Io.Duration{ .nanoseconds = self.listen_delay }, .awake);
+        try self.io.sleep(Io.Duration{ .nanoseconds = self.listen_freq }, .awake);
     } 
     if (self.debug) {
         std.log.defaultLog(.debug, .Testing, "TEST_SERVER: Shutting down.\n", .{});
