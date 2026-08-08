@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
     const lib = b.addLibrary(.{
         .name = "libgmg",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/GMG.zig"),
+            .root_source_file = b.path("src/libgmg.zig"),
             .target = target,
             .optimize = optimize
         })

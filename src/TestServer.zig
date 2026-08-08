@@ -73,8 +73,14 @@ fn listen(self: Self) !void {
         }
 
         switch (inc_msg.data.len) {
-            3 => {
-                self.sock.send(self.io, &inc_msg.from, "UNDB02SUF0_1.1") catch break;
+            3 => switch (buf[1]) {
+                76 => {
+                    self.sock.send(self.io, &inc_msg.from, "GMG00000000") catch break;
+                },
+                78 => {
+                    self.sock.send(self.io, &inc_msg.from, "UNDB02SUF0_1.1") catch break;
+                },
+                else => {}
             },
             1 => {
                 if (self.debug) {
