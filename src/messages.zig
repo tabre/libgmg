@@ -31,8 +31,9 @@ pub const GrillMessage = struct {
     }
 };
 
-pub const MSG_INIT  = GrillMessage{.msg="UN!",    .response_size=14};
-pub const MSG_POLL  = GrillMessage{.msg="UR001!", .response_size=36};
-pub const MSG_START = GrillMessage{.msg="UK001!", .response_size=2};
-pub const MSG_STOP  = GrillMessage{.msg="UK004!", .response_size=2};
-pub const MSG_EOT = GrillMessage{.msg="!", .response_size=0};
+pub const MSG_DISCOVER = GrillMessage{ .msg = "UL!",    .response_size=11 };
+pub const MSG_INIT     = GrillMessage{ .msg = "UN!",    .response_size=14 };
+pub const MSG_POLL     = GrillMessage{ .msg = "UR001!", .response_size=36 };
+pub const MSG_START    = GrillMessage{ .msg = "UK001!", .response_size=2  };
+pub const MSG_STOP     = GrillMessage{ .msg = "UK004!", .response_size=2  };
+pub const MSG_EOT      = GrillMessage{ .msg = "!",      .response_size=0  };
