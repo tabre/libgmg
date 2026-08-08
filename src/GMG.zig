@@ -65,7 +65,7 @@ pub fn from_discovered(
     recv_timeout: u8,
     auto: bool
 ) !Self {
-    return init(io, dg.serial, dg.addr, poll_freq, recv_timeout, auto);
+    return init(io, &dg.serial, dg.addr, poll_freq, recv_timeout, auto);
 }
 
 pub fn init_comm(self: *Self) void {
